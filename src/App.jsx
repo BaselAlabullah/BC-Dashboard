@@ -32,6 +32,7 @@ import {
   ReferenceLine,
   Line,
 } from "recharts";
+import { MOCK_KPI_PAYLOAD } from "./mockKpis";
 const PSI_PER_MBAR = 0.0145038;
 const randomChoice = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -1524,9 +1525,10 @@ const useDashboardData = () => {
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
+      let summary = null;
+      let payload = MOCK_KPI_PAYLOAD;
       try {
         setState((prev) => ({ ...prev, loading: true, error: null }));
-        let summary = null;
         try {
           const summaryResp = await fetch("/api/summary");
           if (summaryResp.ok) {
@@ -1535,11 +1537,19 @@ const useDashboardData = () => {
         } catch (err) {
           // summary optional for showcase
         }
-        const kpiResp = await fetch("/api/kpis");
-        if (!kpiResp.ok) {
-          throw new Error(`Failed to load KPI data (${kpiResp.status})`);
+        try {
+          const kpiResp = await fetch("/api/kpis");
+          if (kpiResp.ok) {
+            payload = await kpiResp.json();
+          } else if (kpiResp.status !== 404) {
+            throw new Error(`Failed to load KPI data (${kpiResp.status})`);
+          }
+        } catch (err) {
+          if (err?.message?.includes("Failed to load KPI data")) {
+            throw err;
+          }
+          // network failure or other fetch issue; fall back to mock payload
         }
-        const payload = await kpiResp.json();
         if (cancelled) return;
         setState({
           loading: false,
@@ -1551,7 +1561,15 @@ const useDashboardData = () => {
         });
       } catch (error) {
         if (cancelled) return;
-        setState((prev) => ({ ...prev, loading: false, error: error.message || "Failed to load dashboard data." }));
+        setState((prev) => ({
+          ...prev,
+          loading: false,
+          error: error?.message || "Failed to load dashboard data.",
+          summary: summary ?? prev.summary,
+          kpis: payload.items || [],
+          explanation: payload.explanation || null,
+          meta: payload.meta || null,
+        }));
       }
     };
     load();
