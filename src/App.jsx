@@ -628,7 +628,7 @@ const StrainerCard = ({ strainer, onSelect, isSelected }) => {
         <div>
           <div className="text-base font-semibold text-white">{strainer.id}</div>
           <div className="mt-1 text-xs text-gray-400">
-            {strainer.location.unit} Ã‚Â· {strainer.location.pump}
+            {`${strainer.location.unit} \u00B7 ${strainer.location.pump}`}
           </div>
         </div>
         <span className={`rounded-full px-2 py-0.5 text-xs font-semibold text-white ${badgeColors[strainer.status] || badgeColors.normal}`}>
@@ -909,7 +909,7 @@ const StrainerDetailView = ({ strainer, summary, liveKpis, liveExplanation, live
         <div>
           <div className="text-3xl font-extrabold text-white">{strainer.id}</div>
           <div className="mt-2 text-sm text-gray-400">
-            {strainer.location.unit} Ã‚Â· {strainer.location.pump} ({strainer.location.position})
+            {`${strainer.location.unit} \u00B7 ${strainer.location.pump} (${strainer.location.position})`}
           </div>
         </div>
         <span
@@ -1147,7 +1147,7 @@ const StrainerDetailView = ({ strainer, summary, liveKpis, liveExplanation, live
                                 </div>
                             </div>
                             )}
-                            {livePending && <div className="text-xs text-sky-200">Updating viewÃ¢â‚¬Â¦</div>}
+                            {livePending && <div className="text-xs text-sky-200">Updating view...</div>}
                             {liveError && <div className="text-xs text-red-300">{liveError}</div>}
                         </div>
                         </div>
@@ -1342,7 +1342,7 @@ const StrainerDetailView = ({ strainer, summary, liveKpis, liveExplanation, live
                         {strainer.causalityAnalysis.fiveWhys.map((item, idx) => (
                         <div key={`why-${idx}`} className="border-l-2 border-white/20 pl-4">
                             <div className="text-sm font-semibold text-blue-300">{item.why}</div>
-                            <div className="text-sm text-gray-200">Ã¢Å¾Å“ {item.because}</div>
+                            <div className="text-sm text-gray-200">{`\u279C ${item.because}`}</div>
                         </div>
                         ))}
                     </div>
@@ -1841,7 +1841,7 @@ export default function App() {
       </main>
       {loading && (
         <div className="fixed inset-0 flex items-center justify-center bg-black/40 text-sm text-gray-200">
-          Loading live dataÃ¢â‚¬Â¦
+          Loading live data...
         </div>
       )}
     </div>
