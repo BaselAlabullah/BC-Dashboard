@@ -1438,12 +1438,22 @@ const StrainerDetailView = ({ strainer, summary, liveKpis, liveExplanation, live
   );
 };
 const StrainerOverviewPanels = ({ strainer }) => {
+  const [activeTab, setActiveTab] = useState("performance");
+
+  useEffect(() => {
+    setActiveTab("performance");
+  }, [strainer?.id]);
+
   if (!strainer) return null;
-  const hasLive = Boolean(strainer.isReal);
+
   const currentRiskColor = riskColorFor(strainer.riskAnalysis.impact, strainer.riskAnalysis.probability);
-  return (
-    <div className="space-y-4">
-      <AccordionItem title="Performance Trends" icon={TrendIcon} defaultOpen={!hasLive}>
+
+  const overviewTabs = [
+    {
+      key: "performance",
+      title: "Performance Trends",
+      icon: TrendIcon,
+      content: (
         <div className={`${GLASS_TILE} p-5`}>
           <div className="text-lg font-semibold text-white">DP Trend (Last 30 Days)</div>
           <div className="mt-4 h-[320px]">
@@ -1480,15 +1490,30 @@ const StrainerOverviewPanels = ({ strainer }) => {
                     return [value, key];
                   }}
                 />
-                <ReferenceLine y={18} stroke="#fbbf24" strokeDasharray="3 3" label={{ value: "Warning", fill: "#fbbf24", fontSize: 12 }} />
-                <ReferenceLine y={25} stroke="#f87171" strokeDasharray="3 3" label={{ value: "Critical", fill: "#f87171", fontSize: 12 }} />
+                <ReferenceLine
+                  y={18}
+                  stroke="#fbbf24"
+                  strokeDasharray="3 3"
+                  label={{ value: "Warning", fill: "#fbbf24", fontSize: 12 }}
+                />
+                <ReferenceLine
+                  y={25}
+                  stroke="#f87171"
+                  strokeDasharray="3 3"
+                  label={{ value: "Critical", fill: "#f87171", fontSize: 12 }}
+                />
                 <Area type="monotone" dataKey="dp" stroke="#8b5cf6" strokeWidth={2} fill="url(#dpGradientTop)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
-      </AccordionItem>
-      <AccordionItem title="Insights" icon={BrainCircuit}>
+      ),
+    },
+    {
+      key: "insights",
+      title: "Insights",
+      icon: BrainCircuit,
+      content: (
         <div className="space-y-4">
           <AccordionItem title="Root Cause Analysis (RCA)" icon={FileText}>
             <div className="prose prose-invert max-w-none text-sm text-gray-200">
@@ -1585,8 +1610,13 @@ const StrainerOverviewPanels = ({ strainer }) => {
             </div>
           </AccordionItem>
         </div>
-      </AccordionItem>
-      <AccordionItem title="Lifecycle Phase" icon={Calendar}>
+      ),
+    },
+    {
+      key: "lifecycle",
+      title: "Lifecycle Phase",
+      icon: Calendar,
+      content: (
         <div className="space-y-6">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="rounded-lg bg-white/5 p-4">
@@ -1632,7 +1662,36 @@ const StrainerOverviewPanels = ({ strainer }) => {
             </table>
           </div>
         </div>
-      </AccordionItem>
+      ),
+    },
+  ];
+
+  const activeTabConfig = overviewTabs.find((tab) => tab.key === activeTab) ?? overviewTabs[0];
+
+  return (
+    <div className={`${GLASS_CARD} overflow-hidden`}>
+      <div className="flex flex-wrap items-center gap-2 border-b border-white/10 bg-white/5 px-5 py-4">
+        {overviewTabs.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = tab.key === activeTabConfig?.key;
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setActiveTab(tab.key)}
+              className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 ${
+                isActive
+                  ? `${ACCENT_GRADIENT} border border-transparent text-white shadow-lg`
+                  : "border border-white/10 bg-transparent text-gray-300 hover:bg-white/5 hover:text-white"
+              }`}
+            >
+              <Icon size={18} />
+              <span>{tab.title}</span>
+            </button>
+          );
+        })}
+      </div>
+      <div className="p-5">{activeTabConfig?.content}</div>
     </div>
   );
 };
