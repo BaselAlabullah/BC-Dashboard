@@ -875,30 +875,8 @@ const StrainerDetailView = ({ strainer, summary, liveKpis, liveExplanation, live
     multipliers.low_load,
     multipliers.shutdown,
   ]);
-  if (!strainer) {
-    return (
-      <div className="flex h-full items-center justify-center p-10 text-2xl text-gray-500">
-        Select a strainer to view its diagnostics
-      </div>
-    );
-  }
-  const statusBadgeColors = {
-    alert: "bg-red-600",
-    warning: "bg-yellow-500",
-    normal: "bg-emerald-500",
-  };
-  const dpTrendLabel =
-    strainer.trends.dpRate > 0.6
-      ? "Up - Accelerating"
-      : strainer.trends.dpRate < 0.2
-      ? "Down - Easing"
-      : "Stable";
-  const efficiencyTrend = strainer.currentMetrics.efficiency < 85 ? "Down - Declining" : "Stable";
-  const currentRiskColor = riskColorFor(strainer.riskAnalysis.impact, strainer.riskAnalysis.probability);
-  const recentEvents = strainer.recentEvents ?? [];
-  const latestLive = liveItems.length ? liveItems[liveItems.length - 1] : null;
   const fleetRiskSummary = useMemo(() => {
-    if (!fleet.length) return null;
+    if (!fleet.length || !strainer) return null;
     const statusCounts = { alert: 0, warning: 0, normal: 0, other: 0 };
     const cellCounts = {};
     const selectedImpact = toTitleLevel(strainer?.riskAnalysis?.impact);
@@ -926,10 +904,12 @@ const StrainerDetailView = ({ strainer, summary, liveKpis, liveExplanation, live
       }
     });
 
-    const [dominantImpact, dominantProbability] = dominantKey ? dominantKey.split("|") : [selectedImpact, selectedProbability];
+    const [dominantImpact, dominantProbability] = dominantKey
+      ? dominantKey.split("|")
+      : [selectedImpact, selectedProbability];
 
     return {
-      total: fleet.length,
+      total: fleet.filter(Boolean).length,
       statusCounts,
       selectedImpact,
       selectedProbability,
@@ -938,7 +918,31 @@ const StrainerDetailView = ({ strainer, summary, liveKpis, liveExplanation, live
       dominantProbability,
       dominantCount: dominantKey ? cellCounts[dominantKey] : sameCellCount,
     };
-  }, [fleet, strainer?.riskAnalysis?.impact, strainer?.riskAnalysis?.probability]);
+  }, [fleet, strainer]);
+
+  if (!strainer) {
+    return (
+      <div className="flex h-full items-center justify-center p-10 text-2xl text-gray-500">
+        Select a strainer to view its diagnostics
+      </div>
+    );
+  }
+  const statusBadgeColors = {
+    alert: "bg-red-600",
+    warning: "bg-yellow-500",
+    normal: "bg-emerald-500",
+  };
+  const dpTrendLabel =
+    strainer.trends.dpRate > 0.6
+      ? "Up - Accelerating"
+      : strainer.trends.dpRate < 0.2
+      ? "Down - Easing"
+      : "Stable";
+  const efficiencyTrend = strainer.currentMetrics.efficiency < 85 ? "Down - Declining" : "Stable";
+  const currentRiskColor = riskColorFor(strainer.riskAnalysis.impact, strainer.riskAnalysis.probability);
+  const recentEvents = strainer.recentEvents ?? [];
+  const latestLive = liveItems.length ? liveItems[liveItems.length - 1] : null;
+  const hasFleetSummary = Boolean(fleetRiskSummary);
   return (
     <div className="h-full overflow-y-auto rounded-3xl bg-transparent p-6">
       <div className="flex items-start justify-between border-b border-white/10 pb-4">
@@ -1001,7 +1005,7 @@ const StrainerDetailView = ({ strainer, summary, liveKpis, liveExplanation, live
       </div>
       <div className="my-10 space-y-4">
         <RiskMatrix fleet={fleet} selected={strainer} />
-        {fleetRiskSummary && (
+        {hasFleetSummary && (
           <div className={`${GLASS_TILE} p-4`}>
             <div className="text-sm font-semibold text-white">Matrix Overview</div>
             <p className="mt-2 text-xs leading-relaxed text-gray-300">
@@ -1437,13 +1441,33 @@ const StrainerDetailView = ({ strainer, summary, liveKpis, liveExplanation, live
     </div>
   );
 };
-const StrainerOverviewPanels = ({ strainer }) => {
+const StrainerOverviewPanels = ({ strainer, strainerOptions = [], selectedId, onSelectStrainer }) => {
+  const [activeTab, setActiveTab] = useState("performance");
+
+  useEffect(() => {
+    setActiveTab("performance");
+  }, [strainer?.id]);
+
   if (!strainer) return null;
-  const hasLive = Boolean(strainer.isReal);
+
   const currentRiskColor = riskColorFor(strainer.riskAnalysis.impact, strainer.riskAnalysis.probability);
-  return (
-    <div className="space-y-4">
-      <AccordionItem title="Performance Trends" icon={TrendIcon} defaultOpen={!hasLive}>
+  const statusGradients = {
+    alert: "from-rose-500 via-orange-500 to-amber-400",
+    warning: "from-amber-400 via-yellow-400 to-emerald-300",
+    normal: "from-emerald-400 via-sky-400 to-indigo-400",
+  };
+  const statusDotColors = {
+    alert: "bg-rose-400",
+    warning: "bg-amber-300",
+    normal: "bg-emerald-300",
+  };
+
+  const overviewTabs = [
+    {
+      key: "performance",
+      title: "Performance Trends",
+      icon: TrendIcon,
+      content: (
         <div className={`${GLASS_TILE} p-5`}>
           <div className="text-lg font-semibold text-white">DP Trend (Last 30 Days)</div>
           <div className="mt-4 h-[320px]">
@@ -1480,15 +1504,30 @@ const StrainerOverviewPanels = ({ strainer }) => {
                     return [value, key];
                   }}
                 />
-                <ReferenceLine y={18} stroke="#fbbf24" strokeDasharray="3 3" label={{ value: "Warning", fill: "#fbbf24", fontSize: 12 }} />
-                <ReferenceLine y={25} stroke="#f87171" strokeDasharray="3 3" label={{ value: "Critical", fill: "#f87171", fontSize: 12 }} />
+                <ReferenceLine
+                  y={18}
+                  stroke="#fbbf24"
+                  strokeDasharray="3 3"
+                  label={{ value: "Warning", fill: "#fbbf24", fontSize: 12 }}
+                />
+                <ReferenceLine
+                  y={25}
+                  stroke="#f87171"
+                  strokeDasharray="3 3"
+                  label={{ value: "Critical", fill: "#f87171", fontSize: 12 }}
+                />
                 <Area type="monotone" dataKey="dp" stroke="#8b5cf6" strokeWidth={2} fill="url(#dpGradientTop)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
-      </AccordionItem>
-      <AccordionItem title="Insights" icon={BrainCircuit}>
+      ),
+    },
+    {
+      key: "insights",
+      title: "Insights",
+      icon: BrainCircuit,
+      content: (
         <div className="space-y-4">
           <AccordionItem title="Root Cause Analysis (RCA)" icon={FileText}>
             <div className="prose prose-invert max-w-none text-sm text-gray-200">
@@ -1585,8 +1624,13 @@ const StrainerOverviewPanels = ({ strainer }) => {
             </div>
           </AccordionItem>
         </div>
-      </AccordionItem>
-      <AccordionItem title="Lifecycle Phase" icon={Calendar}>
+      ),
+    },
+    {
+      key: "lifecycle",
+      title: "Lifecycle Phase",
+      icon: Calendar,
+      content: (
         <div className="space-y-6">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="rounded-lg bg-white/5 p-4">
@@ -1632,7 +1676,66 @@ const StrainerOverviewPanels = ({ strainer }) => {
             </table>
           </div>
         </div>
-      </AccordionItem>
+      ),
+    },
+  ];
+
+  const activeTabConfig = overviewTabs.find((tab) => tab.key === activeTab) ?? overviewTabs[0];
+
+  return (
+    <div className={`${GLASS_CARD} overflow-hidden`}>
+      <div className="flex flex-wrap items-center gap-3 border-b border-white/10 bg-white/5 px-5 py-4">
+        <div className="flex flex-wrap items-center gap-2">
+          {overviewTabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = tab.key === activeTabConfig?.key;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setActiveTab(tab.key)}
+                className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 ${
+                  isActive
+                    ? `${ACCENT_GRADIENT} border border-transparent text-white shadow-lg`
+                    : "border border-white/10 bg-transparent text-gray-300 hover:bg-white/5 hover:text-white"
+                }`}
+              >
+                <Icon size={18} />
+                <span>{tab.title}</span>
+              </button>
+            );
+          })}
+        </div>
+        {strainerOptions.length > 0 && (
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-500">Strainers</span>
+            <div className="flex flex-wrap items-center gap-2">
+              {strainerOptions.map((option) => {
+                const isSelected = option.id === selectedId;
+                const gradient = statusGradients[option.status] || "from-slate-600 to-slate-700";
+                const dotColor = statusDotColors[option.status] || "bg-slate-400";
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => onSelectStrainer?.(option.id)}
+                    className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 ${
+                      isSelected
+                        ? `bg-gradient-to-r ${gradient} text-white shadow-lg`
+                        : "border border-white/10 bg-transparent text-gray-300 hover:bg-white/5 hover:text-white"
+                    } ${onSelectStrainer ? "cursor-pointer" : "cursor-default"}`}
+                    disabled={!onSelectStrainer}
+                  >
+                    <span className={`h-2 w-2 rounded-full ${dotColor}`} />
+                    <span>{option.id}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+      <div className="p-5">{activeTabConfig?.content}</div>
     </div>
   );
 };
@@ -1716,11 +1819,6 @@ export default function App() {
   const [activeFilter, setActiveFilter] = useState("All");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedId, setSelectedId] = useState(null);
-  useEffect(() => {
-    if (!selectedId && strainerFleet.length) {
-      setSelectedId(strainerFleet[0].id);
-    }
-  }, [selectedId, strainerFleet]);
   const filteredStrainers = useMemo(() => {
     return strainerFleet.filter((strainer) => {
       const matchesFilter =
@@ -1734,10 +1832,24 @@ export default function App() {
       return matchesFilter && matchesSearch;
     });
   }, [strainerFleet, activeFilter, searchTerm]);
-  const selectedStrainer = useMemo(
-    () => strainerFleet.find((s) => s.id === selectedId) || strainerFleet[0] || null,
-    [selectedId, strainerFleet],
-  );
+  const selectedStrainer = useMemo(() => {
+    if (!selectedId) {
+      return null;
+    }
+    return strainerFleet.find((s) => s.id === selectedId) || null;
+  }, [selectedId, strainerFleet]);
+
+  useEffect(() => {
+    if (filteredStrainers.length === 0) {
+      if (selectedId !== null) {
+        setSelectedId(null);
+      }
+      return;
+    }
+    if (!selectedId || !filteredStrainers.some((strainer) => strainer.id === selectedId)) {
+      setSelectedId(filteredStrainers[0].id);
+    }
+  }, [filteredStrainers, selectedId]);
   const fleetMetrics = useMemo(() => {
     const criticalCount = strainerFleet.filter((s) => s.status === "alert").length;
     const warningCount = strainerFleet.filter((s) => s.status === "warning").length;
@@ -1826,7 +1938,12 @@ export default function App() {
         </section>
         {selectedStrainer && (
           <section className="space-y-4">
-            <StrainerOverviewPanels strainer={selectedStrainer} />
+            <StrainerOverviewPanels
+              strainer={selectedStrainer}
+              strainerOptions={filteredStrainers}
+              selectedId={selectedId}
+              onSelectStrainer={setSelectedId}
+            />
           </section>
         )}
         <section className="flex min-h-[600px] flex-1 gap-6">
