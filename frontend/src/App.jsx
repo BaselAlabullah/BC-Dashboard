@@ -20,6 +20,9 @@ import {
   LineChart as TrendIcon,
   Info,
   ChevronDown,
+  ArrowUpRight,
+  ArrowDownRight,
+  Minus,
 } from "lucide-react";
 import {
   Area,
@@ -606,36 +609,61 @@ const createRealStrainer = (kpis, explanation, meta, summary) => {
     rawProbability,
   };
 };
-const KpiCard = ({ title, value, icon: Icon, color, trend }) => (
-  <div className={`${GLASS_TILE} px-5 py-4`}>
-    <div className="flex items-center justify-between">
-      <div>
-        <div className="text-sm font-semibold uppercase tracking-wide text-gray-400">{title}</div>
-        <div className="mt-2 text-2xl font-bold text-white">{value}</div>
-        {trend && (
-          <div
-            className={`mt-1 text-xs font-medium ${
-              trend.startsWith("+")
-                ? "text-rose-300"
-                : trend.startsWith("-")
-                ? "text-emerald-300"
-                : "text-sky-300"
-            }`}
-          >
-            {trend}
-          </div>
-        )}
-      </div>
-      {Icon ? (
-        <div className={`${ACCENT_GRADIENT} rounded-2xl p-[1px] shadow-lg`}>
-          <div className={`flex h-12 w-12 items-center justify-center rounded-[14px] ${color || "bg-indigo-500/20"} text-white`}>
-            <Icon size={22} />
-          </div>
+const KpiCard = ({ title, value, icon: Icon, color, trend }) => {
+  const trendDelta = Number(trend?.delta ?? 0);
+  const hasTrend = trend !== undefined && trend !== null;
+  const isZeroDelta = trendDelta === 0;
+  const isPositiveDelta = trendDelta > 0;
+  const isIncreasePositive = trend?.isIncreasePositive ?? true;
+  const isGoodChange = isZeroDelta
+    ? null
+    : isIncreasePositive
+    ? isPositiveDelta
+    : !isPositiveDelta;
+  let TrendIcon = Minus;
+  if (!isZeroDelta) {
+    TrendIcon = isPositiveDelta ? ArrowUpRight : ArrowDownRight;
+  }
+  const trendColor = !hasTrend
+    ? "text-sky-300"
+    : isZeroDelta
+    ? "text-sky-300"
+    : isGoodChange
+    ? "text-emerald-300"
+    : "text-rose-300";
+  const trendLabel = (() => {
+    if (!hasTrend) return "";
+    if (trend?.label) return trend.label;
+    if (isZeroDelta) return trend?.noChangeLabel || "No change";
+    const absValue = Math.abs(trendDelta);
+    const formattedValue = trend?.precision !== undefined ? absValue.toFixed(trend.precision) : absValue;
+    const suffix = trend?.suffix ? ` ${trend.suffix}` : "";
+    return `${formattedValue}${suffix}`.trim();
+  })();
+  return (
+    <div className={`${GLASS_TILE} px-5 py-4`}>
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-sm font-semibold uppercase tracking-wide text-gray-400">{title}</div>
+          <div className="mt-2 text-2xl font-bold text-white">{value}</div>
+          {hasTrend ? (
+            <div className={`mt-1 flex items-center gap-1 text-xs font-medium ${trendColor}`}>
+              <TrendIcon size={14} />
+              <span>{trendLabel}</span>
+            </div>
+          ) : null}
         </div>
-      ) : null}
+        {Icon ? (
+          <div className={`${ACCENT_GRADIENT} rounded-2xl p-[1px] shadow-lg`}>
+            <div className={`flex h-12 w-12 items-center justify-center rounded-[14px] ${color || "bg-indigo-500/20"} text-white`}>
+              <Icon size={22} />
+            </div>
+          </div>
+        ) : null}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 const StrainerCard = ({ strainer, onSelect, isSelected }) => {
   const statusGlows = {
     alert: "ring-rose-500/50 shadow-[0_0_35px_rgba(244,63,94,0.35)]",
@@ -1858,15 +1886,51 @@ export default function App() {
       strainerFleet.reduce((acc, s) => acc + s.currentMetrics.efficiency, 0) /
       Math.max(strainerFleet.length, 1)
     ).toFixed(1);
-    const criticalTrend = realStrainer
-      ? `${criticalCount >= (meta?.alerts_fired ?? 0) ? "+" : "-"}${Math.abs(criticalCount - (meta?.alerts_fired ?? 0))} vs last window`
-      : "No change";
+    const describeCountChange = (delta, basis) => {
+      if (delta === 0) {
+        return `No change ${basis}`;
+      }
+      const direction = delta > 0 ? "more" : "fewer";
+      return `${Math.abs(delta)} ${direction} ${basis}`;
+    };
+    const criticalBaseline = meta?.alerts_fired ?? criticalCount;
+    const criticalDelta = realStrainer ? criticalCount - criticalBaseline : 0;
+    const criticalTrend = {
+      delta: criticalDelta,
+      label: describeCountChange(criticalDelta, "vs last window"),
+      isIncreasePositive: false,
+    };
+    const warningBaseline = Math.max(warningCount - 1, 0);
+    const warningDelta = warningCount - warningBaseline;
+    const warningTrend = {
+      delta: warningDelta,
+      label: describeCountChange(warningDelta, "vs last week"),
+      isIncreasePositive: false,
+    };
+    const maintenanceDelta = 0;
+    const maintenanceTrend = {
+      delta: maintenanceDelta,
+      label: describeCountChange(maintenanceDelta, "vs last week"),
+      isIncreasePositive: false,
+    };
+    const efficiencyDelta = -0.9;
+    const efficiencyTrend = {
+      delta: efficiencyDelta,
+      label:
+        efficiencyDelta === 0
+          ? "No change vs last week"
+          : `${Math.abs(efficiencyDelta).toFixed(1)}% vs last week`,
+      isIncreasePositive: true,
+    };
     return {
       criticalCount,
       warningCount,
       maintenanceDue7d,
       avgEfficiency,
       criticalTrend,
+      warningTrend,
+      maintenanceTrend,
+      efficiencyTrend,
     };
   }, [strainerFleet, meta, realStrainer]);
   return (
@@ -1920,20 +1984,21 @@ export default function App() {
             value={fleetMetrics.warningCount}
             icon={Activity}
             color="bg-amber-500/30"
-            trend="+1 vs last week"
+            trend={fleetMetrics.warningTrend}
           />
           <KpiCard
             title="Maintenance Due [7d]"
             value={fleetMetrics.maintenanceDue7d}
             icon={Wrench}
             color="bg-blue-500/30"
+            trend={fleetMetrics.maintenanceTrend}
           />
           <KpiCard
             title="Avg Fleet Efficiency"
             value={`${fleetMetrics.avgEfficiency}%`}
             icon={TrendingUp}
             color="bg-emerald-500/30"
-            trend="-0.9% vs last week"
+            trend={fleetMetrics.efficiencyTrend}
           />
         </section>
         {selectedStrainer && (
