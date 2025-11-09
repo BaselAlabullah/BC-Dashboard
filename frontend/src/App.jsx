@@ -33,13 +33,16 @@ import {
   Line,
 } from "recharts";
 import { MOCK_KPI_PAYLOAD } from "./mockKpis";
+import KpiCard from "./components/KpiCard";
+import MetricDisplay from "./components/MetricDisplay";
 import {
-  evaluateTrendState,
-  getIconOrientationClass,
-  getTrendAccentClass,
-  getTrendColorClass,
-  selectIconTone,
-} from "./utils/trends";
+  ACCENT_GRADIENT,
+  ACCENT_TEXT,
+  FILTER_PILL_BASE,
+  GLASS_CARD,
+  GLASS_TILE,
+  INPUT_BASE,
+} from "./constants/ui";
 
 const resolveBackendBase = () => {
   const env = import.meta.env || {};
@@ -131,13 +134,6 @@ const LEVEL_LABELS = {
   "very high": "Very High",
 };
 const toTitleLevel = (value) => LEVEL_LABELS[String(value || "medium").toLowerCase()] ?? "Medium";
-const GLASS_CARD = "rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-[0_25px_80px_rgba(2,6,23,0.65)]";
-const GLASS_TILE = "rounded-2xl border border-white/10 bg-white/5 backdrop-blur-lg shadow-[0_15px_45px_rgba(2,6,23,0.55)]";
-const ACCENT_GRADIENT = "bg-gradient-to-br from-indigo-500 via-sky-500 to-emerald-400";
-const ACCENT_TEXT = "bg-gradient-to-r from-sky-300 via-indigo-200 to-emerald-200 bg-clip-text text-transparent";
-const INPUT_BASE =
-  "rounded-2xl border border-white/10 bg-neutral-950/60 text-white placeholder-gray-500 shadow-inner focus:border-sky-400 focus:outline-none focus:ring-0";
-const FILTER_PILL_BASE = "rounded-full border border-white/10 px-3 py-1 text-xs font-semibold transition";
 const regimeColor = (regime) =>
   ({
     normal: "#22c55e",
@@ -747,56 +743,6 @@ const createRealStrainer = (kpis, explanation, meta, summary) => {
     metricTrends: deriveMetricTrendsForStrainer(strainer),
   };
 };
-const KpiCard = ({ title, value, icon: Icon, color, trend }) => {
-  const trendState = evaluateTrendState(trend);
-  const { hasTrend, tone: trendTone, glyph: TrendGlyph, label: trendLabel } = trendState;
-  const trendColor = getTrendColorClass(trendTone);
-  const trendAccent = getTrendAccentClass(trendTone);
-  const iconTone = selectIconTone(trendTone, {
-    neutral: {
-      frame: `${ACCENT_GRADIENT} shadow-lg`,
-      inner: `${color || "bg-indigo-500/20"} text-white border border-white/10`,
-    },
-    positive: {
-      frame: "bg-gradient-to-br from-sky-500 via-indigo-500 to-blue-500 shadow-[0_20px_45px_rgba(56,189,248,0.35)]",
-      inner: "border border-sky-400/40 bg-sky-500/15 text-sky-50",
-    },
-    negative: {
-      frame: "bg-gradient-to-br from-rose-600 via-red-500 to-amber-400 shadow-[0_20px_45px_rgba(239,68,68,0.35)]",
-      inner: "border border-rose-400/40 bg-rose-500/15 text-rose-50",
-    },
-  });
-  const iconOrientationClass = getIconOrientationClass(Icon, trendTone, hasTrend);
-  return (
-    <div className={`${GLASS_TILE} px-5 py-4`}>
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="text-sm font-semibold uppercase tracking-wide text-gray-400">{title}</div>
-          <div className="mt-2 text-2xl font-bold text-white">{value}</div>
-          {hasTrend ? (
-            <div className={`mt-1 flex items-center gap-2 text-xs font-medium ${trendColor}`}>
-              <span
-                className={`flex h-6 w-6 items-center justify-center rounded-full border ${trendAccent}`}
-              >
-                <TrendGlyph size={14} strokeWidth={2.5} />
-              </span>
-              <span>{trendLabel}</span>
-            </div>
-          ) : null}
-        </div>
-        {Icon ? (
-          <div className={`${iconTone.frame} rounded-2xl p-[1px]`}>
-            <div
-              className={`flex h-12 w-12 items-center justify-center rounded-[14px] ${iconTone.inner} ${iconOrientationClass}`}
-            >
-              <Icon size={22} />
-            </div>
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
-};
 const StrainerCard = ({ strainer, onSelect, isSelected }) => {
   const statusGlows = {
     alert: "ring-rose-500/50 shadow-[0_0_35px_rgba(244,63,94,0.35)]",
@@ -854,57 +800,6 @@ const StrainerCard = ({ strainer, onSelect, isSelected }) => {
           <div className="font-semibold text-white">{strainer.trends.daysSinceClean} d</div>
         </div>
       </div>
-    </div>
-  );
-};
-const MetricDisplay = ({ icon: Icon, label, value, unit, trend }) => {
-  const trendState = evaluateTrendState(trend);
-  const { hasTrend, tone: trendTone, glyph: TrendGlyph, label: trendLabel } = trendState;
-  const trendColor = getTrendColorClass(trendTone);
-  const trendAccent = getTrendAccentClass(trendTone);
-  const iconTone = selectIconTone(trendTone, {
-    neutral: {
-      frame: `${ACCENT_GRADIENT} shadow-lg`,
-      inner: "border border-white/10 bg-neutral-900/60 text-white",
-    },
-    positive: {
-      frame: "bg-gradient-to-br from-sky-500 via-indigo-500 to-blue-500 shadow-[0_18px_40px_rgba(56,189,248,0.35)]",
-      inner: "border border-sky-400/40 bg-sky-500/15 text-sky-50",
-    },
-    negative: {
-      frame: "bg-gradient-to-br from-rose-600 via-red-500 to-amber-400 shadow-[0_18px_40px_rgba(239,68,68,0.35)]",
-      inner: "border border-rose-400/40 bg-rose-500/15 text-rose-50",
-    },
-  });
-  const iconOrientationClass = getIconOrientationClass(Icon, trendTone, hasTrend);
-  return (
-    <div className={`${GLASS_TILE} p-4`}>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-xs font-semibold uppercase tracking-wider text-gray-400">{label}</div>
-          <div className="mt-1 text-2xl font-bold text-white">
-            {value}
-            {unit ? <span className="ml-1 text-sm font-semibold text-gray-400">{unit}</span> : null}
-          </div>
-        </div>
-        {Icon ? (
-          <div className={`${iconTone.frame} rounded-2xl p-[1px]`}>
-            <div
-              className={`flex h-11 w-11 items-center justify-center rounded-xl ${iconTone.inner} ${iconOrientationClass}`}
-            >
-              <Icon size={20} strokeWidth={2.5} />
-            </div>
-          </div>
-        ) : null}
-      </div>
-      {hasTrend ? (
-        <div className={`mt-3 flex items-center gap-2 text-xs font-medium ${trendColor}`}>
-          <span className={`flex h-6 w-6 items-center justify-center rounded-full border ${trendAccent}`}>
-            <TrendGlyph size={14} strokeWidth={2.5} />
-          </span>
-          <span>{trendLabel}</span>
-        </div>
-      ) : null}
     </div>
   );
 };
