@@ -1006,6 +1006,12 @@ const StrainerDetailView = ({ strainer, summary, liveKpis, liveExplanation, live
     };
   }, [fleet, strainer]);
 
+  const metricTrends = useMemo(() => {
+    if (!strainer) return {};
+    if (strainer.metricTrends) return strainer.metricTrends;
+    return deriveMetricTrendsForStrainer(strainer);
+  }, [strainer]);
+
   if (!strainer) {
     return (
       <div className="flex h-full items-center justify-center p-10 text-2xl text-gray-500">
@@ -1013,16 +1019,12 @@ const StrainerDetailView = ({ strainer, summary, liveKpis, liveExplanation, live
       </div>
     );
   }
+
   const statusBadgeColors = {
     alert: "bg-red-600",
     warning: "bg-yellow-500",
     normal: "bg-emerald-500",
   };
-  const metricTrends = useMemo(() => {
-    if (!strainer) return {};
-    if (strainer.metricTrends) return strainer.metricTrends;
-    return deriveMetricTrendsForStrainer(strainer);
-  }, [strainer]);
   const dpTrendMeta = metricTrends.differentialPressure;
   const flowTrendMeta = metricTrends.flowRate;
   const efficiencyTrendMeta = metricTrends.efficiency;
