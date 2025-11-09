@@ -20,6 +20,9 @@ import {
   LineChart as TrendIcon,
   Info,
   ChevronDown,
+  ArrowUpRight,
+  ArrowDownRight,
+  Minus,
 } from "lucide-react";
 import {
   Area,
