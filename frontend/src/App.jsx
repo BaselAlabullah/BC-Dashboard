@@ -522,14 +522,14 @@ const generateMockStrainerData = (count = 6) => {
     };
   });
 };
-const PIPELINE_LOCATIONS = [
-  { corridor: "Export Loop A", station: "Block Valve BV-401", section: "North Span" },
-  { corridor: "Export Loop A", station: "Pump Station PS-2", section: "Desert Crossing" },
-  { corridor: "Products Trunk B", station: "Metering Skid MS-7", section: "Coastal Reach" },
-  { corridor: "Gathering Spine C", station: "Launcher Station LS-3", section: "Mountain Pass" },
-  { corridor: "Jet Fuel Spur D", station: "Block Valve BV-812", section: "Terminal Approach" },
-  { corridor: "Arab Light Loop E", station: "Pump Station PS-9", section: "Plateau Span" },
-  { corridor: "Gas Condensate Spur F", station: "Metering Skid MS-11", section: "Marsh Crossing" },
+const COMPRESSOR_LOCATIONS = [
+  { facility: "Residue Compression", train: "Train K-401A", service: "Residue Gas" },
+  { facility: "Residue Compression", train: "Train K-401B", service: "Residue Gas" },
+  { facility: "Wet Gas Compression", train: "Train K-233", service: "Wet Gas" },
+  { facility: "Gas Lift Compression", train: "Train K-612", service: "Gas Lift" },
+  { facility: "Export Compression", train: "Train K-710", service: "Export" },
+  { facility: "Fuel Gas Compression", train: "Train K-120", service: "Fuel Gas" },
+  { facility: "Sales Gas Compression", train: "Train K-905", service: "Sales Gas" },
 ];
 const FUEL_CONTAINER_LOCATIONS = [
   { terminal: "Bulk Terminal North", tank: "TK-201 Floating Roof", position: "Bay 2" },
@@ -539,30 +539,6 @@ const FUEL_CONTAINER_LOCATIONS = [
   { terminal: "Marine Export Yard", tank: "Gasoline Tank TK-118", position: "Berth Hold" },
   { terminal: "Aviation Fuel Annex", tank: "Jet A-1 TK-502", position: "Wing Row" },
 ];
-const generateMockPipelineData = (count = 6) => {
-  const replacements = [
-    ...buildAssetLanguageReplacements("Pipeline Segment", "Pipeline Segments"),
-    { pattern: /\belement\b/gi, replacement: "segment" },
-    { pattern: /\bmesh\b/gi, replacement: "wall thickness" },
-    { pattern: /\bcleaning\b/gi, replacement: "pigging" },
-    { pattern: /\bclean\b/gi, replacement: "pig" },
-  ];
-  const baseFleet = generateMockStrainerData(count);
-  return baseFleet.map((asset, idx) => {
-    const location = PIPELINE_LOCATIONS[idx % PIPELINE_LOCATIONS.length];
-    const adapted = replaceAssetLanguage(asset, replacements);
-    return {
-      ...adapted,
-      id: `PIPE-${401 + idx}`,
-      assetCategory: "Pipeline",
-      location: {
-        unit: location.corridor,
-        pump: location.station,
-        position: location.section,
-      },
-    };
-  });
-};
 const generateMockPetrolContainerData = (count = 6) => {
   const replacements = [
     ...buildAssetLanguageReplacements("Fuel Container", "Fuel Containers"),
@@ -582,6 +558,48 @@ const generateMockPetrolContainerData = (count = 6) => {
         unit: location.terminal,
         pump: location.tank,
         position: location.position,
+      },
+    };
+  });
+};
+const generateMockCompressorData = (count = 6) => {
+  const replacements = [
+    ...buildAssetLanguageReplacements("Compressor", "Compressors"),
+    { pattern: /\bcleaning\b/gi, replacement: "service" },
+    { pattern: /\bclean\b/gi, replacement: "service" },
+    { pattern: /\belement\b/gi, replacement: "cartridge" },
+    { pattern: /\bmesh\b/gi, replacement: "impeller" },
+  ];
+  const baseFleet = generateMockStrainerData(count);
+  return baseFleet.map((asset, idx) => {
+    const location = COMPRESSOR_LOCATIONS[idx % COMPRESSOR_LOCATIONS.length];
+    const adapted = replaceAssetLanguage(asset, replacements);
+    const dischargePressure = 420 + Math.random() * 90;
+    const throughput = 60 + Math.random() * 35;
+    const designThroughput = throughput * (1 + Math.random() * 0.25);
+    const efficiency = 70 + Math.random() * 20;
+    const hoursSinceService = Math.floor(Math.random() * 480) + 72;
+    return {
+      ...adapted,
+      id: `COMP-${610 + idx}`,
+      assetCategory: "Compressor",
+      location: {
+        unit: location.facility,
+        pump: location.train,
+        position: `${location.service} Service`,
+      },
+      currentMetrics: {
+        ...adapted.currentMetrics,
+        differentialPressure: Number(dischargePressure.toFixed(1)),
+        flowRate: Number(throughput.toFixed(1)),
+        efficiency: Number(efficiency.toFixed(1)),
+        designFlowRate: Number(designThroughput.toFixed(1)),
+      },
+      trends: {
+        ...adapted.trends,
+        daysSinceClean: Math.max(3, Math.round(hoursSinceService / 24)),
+        dpRate: Number(((dischargePressure - 400) / Math.max(hoursSinceService, 1)).toFixed(3)),
+        baselineDP: Number((dischargePressure - 35).toFixed(1)),
       },
     };
   });
@@ -636,54 +654,60 @@ const ASSET_CONFIGS = {
     },
     generateMockData: (count = 6) => generateMockStrainerData(count),
   },
-  pipelines: {
-    key: "pipelines",
-    navLabel: "Pipelines",
-    label: "Pipeline Segment",
-    pluralLabel: "Pipeline Segments",
-    heroTitle: "Pipeline Integrity Command",
-    heroTagline: "Transmission and gathering line performance dashboard",
+  compressors: {
+    key: "compressors",
+    navLabel: "Compressors",
+    label: "Compressor",
+    pluralLabel: "Compressors",
+    heroTitle: "Compression Reliability Command",
+    heroTagline: "Residue, wet gas, and gas-lift compressors health dashboard",
     heroBadge: "Assets",
     icon: Gauge,
-    fleetTitle: "Pipeline Fleet",
-    searchPlaceholder: "Search by corridor, station, ID...",
-    emptyStateTitle: "No Pipelines Found",
-    emptyStateSubtitle: "Adjust corridor or status filters.",
-    listChipLabel: "Pipelines",
-    cardLabels: { dp: "Pressure Drop", flow: "Throughput", efficiency: "Integrity", since: "Since pigging", sinceSuffix: "d" },
-    cardUnits: { dp: "psi", flow: "kbpd", efficiency: "%", since: "d" },
-    detailMetricLabels: {
-      dp: "Pressure Drop",
+    fleetTitle: "Compressor Fleet",
+    searchPlaceholder: "Search by train, unit, compressor...",
+    emptyStateTitle: "No Compressors Found",
+    emptyStateSubtitle: "Try refining status or facility filters.",
+    listChipLabel: "Compressors",
+    cardLabels: {
+      dp: "Disch. Pressure",
       flow: "Throughput",
-      efficiency: "Integrity",
-      daysSinceClean: "Days Since Pigging",
-      dpRate: "Drop Rate",
-      designFlow: "Design Capacity",
+      efficiency: "Polytropic Eff.",
+      since: "Since service",
+      sinceSuffix: "d",
+    },
+    cardUnits: { dp: "psi", flow: "MMSCFD", efficiency: "%", since: "d" },
+    detailMetricLabels: {
+      dp: "Discharge Pressure",
+      flow: "Throughput",
+      efficiency: "Polytropic Efficiency",
+      daysSinceClean: "Days Since Service",
+      dpRate: "Pressure Drift",
+      designFlow: "Design Throughput",
     },
     detailMetricUnits: {
       dp: "psi",
-      flow: "kbpd",
+      flow: "MMSCFD",
       efficiency: "%",
       daysSinceClean: "days",
       dpRate: "psi/day",
-      designFlow: "kbpd",
+      designFlow: "MMSCFD",
     },
     chartLabels: {
-      dpTrendTitle: "Pressure Drop Trend (30 Days)",
-      dpAxis: "Drop (psi)",
-      tooltipDp: "Drop",
-      tooltipFlow: "Flow",
-      tooltipEfficiency: "Integrity",
+      dpTrendTitle: "Discharge Pressure Trend (30 Days)",
+      dpAxis: "Pressure (psi)",
+      tooltipDp: "Disch. Pressure",
+      tooltipFlow: "Throughput",
+      tooltipEfficiency: "Poly. Eff.",
     },
     maintenanceHistory: {
-      title: "Inspection History",
+      title: "Service History",
       beforeLabel: "Pressure Before",
       afterLabel: "Pressure After",
-      descriptorLabel: "Tool Pass",
+      descriptorLabel: "Scope",
       beforeUnit: "psi",
       afterUnit: "psi",
     },
-    generateMockData: generateMockPipelineData,
+    generateMockData: generateMockCompressorData,
   },
   petrol: {
     key: "petrol",
