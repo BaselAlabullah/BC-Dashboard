@@ -2831,7 +2831,7 @@ export default function App() {
                 <AssetIcon size={24} />
               </div>
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-gray-500">Jazan Refinery</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-gray-500">Ghawar Oil Filed</p>
                 <h1 className="text-2xl font-bold text-white">{heroTitle}</h1>
               </div>
             </div>
