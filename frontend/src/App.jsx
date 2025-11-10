@@ -28,6 +28,7 @@ import {
   AreaChart,
   Bar,
   BarChart,
+  Cell,
   CartesianGrid,
   ResponsiveContainer,
   Tooltip,
@@ -391,7 +392,7 @@ const generateMockStrainerData = (count = 6) => {
         efficiency: Number(((flowAtPoint / designFlowRate) * 100).toFixed(1)),
       };
     });
-    const cleaningHistory = Array.from({ length: 3 }, (_, i) => {
+    const cleaningHistory = Array.from({ length: 4 }, (_, i) => {
       const daysAgo = daysSinceClean + (i + 1) * (28 + Math.random() * 7);
       const dpBeforeClean = 22 + Math.random() * 8;
       const dpAfterClean = 8 + Math.random() * 2;
@@ -408,14 +409,11 @@ const generateMockStrainerData = (count = 6) => {
     const daysUntilCritical = dpRate > 0 ? Math.max(1, Math.floor((criticalDP - currentDP) / dpRate)) : 999;
     const projectedPlugDate = new Date(Date.now() + daysUntilCritical * 24 * 60 * 60 * 1000);
     const nextScheduledClean = new Date(Date.now() + (35 - daysSinceClean) * 24 * 60 * 60 * 1000);
-    const debrisCounter = cleaningHistory.reduce((acc, entry) => {
-      acc[entry.debrisType] = (acc[entry.debrisType] || 0) + 1;
-      return acc;
-    }, {});
-    const debrisMix = Object.entries(debrisCounter).map(([type, count]) => ({
-      type,
-      percent: Number(((count / cleaningHistory.length) * 100).toFixed(1)),
-    }));
+    const debrisMix = [
+      { type: "Sand/Silt", percent: 62.5 },
+      { type: "Corrosion Products", percent: 28.2 },
+      { type: "Scale", percent: 9.3 },
+    ];
     const foulingPrediction = {
       daysToCritical: daysUntilCritical,
       foulingRate: Number(dpRate.toFixed(2)),
@@ -879,15 +877,11 @@ const createRealStrainer = (kpis = [], explanation, meta) => {
       debrisType: ["Sand/Silt", "Corrosion Products", "Scale"][idx % 3],
     };
   });
-  const debrisMix = Object.entries(
-    cleaningHistory.reduce((acc, event) => {
-      acc[event.debrisType] = (acc[event.debrisType] || 0) + 1;
-      return acc;
-    }, {}),
-  ).map(([type, count]) => ({
-    type,
-    percent: Number(((count / cleaningHistory.length) * 100).toFixed(1)),
-  }));
+  const debrisMix = [
+    { type: "Sand/Silt", percent: 62.5 },
+    { type: "Corrosion Products", percent: 28.2 },
+    { type: "Scale", percent: 9.3 },
+  ];
   const predictions = {
     daysToCritical: daysUntilCritical,
     foulingRate: Number(positiveDpRate.toFixed(2)),
@@ -2186,68 +2180,11 @@ const StrainerOverviewPanels = ({ strainer, strainerOptions = [], selectedId, on
   const chartLabels = assetConfig?.chartLabels ?? {};
   const maintenanceHistoryLabels = assetConfig?.maintenanceHistory ?? {};
   const chipLabel = assetConfig?.listChipLabel ?? assetConfig?.pluralLabel ?? "Assets";
-  const strainerPredictions = strainer.predictions ?? {};
   const debrisMix = strainer.debrisMix ?? [];
-  const debrisStackData = useMemo(() => {
-    if (!debrisMix.length) return [];
-    const base = { name: "Mix" };
-    debrisMix.forEach((slice) => {
-      base[slice.type] = slice.percent;
-    });
-    return [base];
-  }, [debrisMix]);
-  const peerStats = useMemo(() => {
-    if (!strainerOptions.length) return null;
-    const peers = strainerOptions.filter((asset) => asset.id !== strainer.id && asset.currentMetrics && asset.trends);
-    const pool = peers.length ? peers : strainerOptions;
-    if (!pool.length) return null;
-    const totals = pool.reduce(
-      (acc, asset) => {
-        acc.dp += asset.currentMetrics?.differentialPressure ?? 0;
-        acc.dpRate += asset.trends?.dpRate ?? 0;
-        acc.efficiency += asset.currentMetrics?.efficiency ?? 0;
-        return acc;
-      },
-      { dp: 0, dpRate: 0, efficiency: 0 },
-    );
-    const divisor = pool.length;
-    return {
-      avgDp: totals.dp / divisor,
-      avgDpRate: totals.dpRate / divisor,
-      avgEfficiency: totals.efficiency / divisor,
-    };
-  }, [strainerOptions, strainer]);
-  const dpDelta = peerStats ? strainer.currentMetrics.differentialPressure - peerStats.avgDp : 0;
-  const foulingDelta = peerStats ? strainer.trends.dpRate - peerStats.avgDpRate : 0;
-  const efficiencyDelta = peerStats ? strainer.currentMetrics.efficiency - peerStats.avgEfficiency : 0;
-  const anomalyCallouts = [
-    {
-      label: "DP vs Fleet",
-      value: `${dpDelta >= 0 ? "+" : ""}${dpDelta.toFixed(1)} psi`,
-      tone: dpDelta >= 0 ? "text-rose-300" : "text-emerald-300",
-      description: dpDelta >= 0 ? "Running hotter than fleet median" : "Below fleet differential",
-    },
-    {
-      label: "Fouling Rate",
-      value: `${foulingDelta >= 0 ? "+" : ""}${foulingDelta.toFixed(2)} psi/day`,
-      tone: foulingDelta >= 0 ? "text-amber-300" : "text-emerald-300",
-      description: foulingDelta >= 0 ? "Acceleration vs baseline" : "On pace with fleet",
-    },
-    {
-      label: "Efficiency Delta",
-      value: `${efficiencyDelta >= 0 ? "+" : ""}${efficiencyDelta.toFixed(1)}%`,
-      tone: efficiencyDelta >= 0 ? "text-sky-300" : "text-rose-300",
-      description: efficiencyDelta >= 0 ? "Headroom remaining" : "Below fleet efficiency",
-    },
-  ];
-  const nextCleanCountdown = useMemo(() => {
-    const due = strainer.trends?.nextCleanDue;
-    if (!due) return strainerPredictions.daysToCritical ?? 0;
-    const dueDate = new Date(due);
-    if (Number.isNaN(dueDate.getTime())) return strainerPredictions.daysToCritical ?? 0;
-    const days = Math.max(0, Math.round((dueDate.getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
-    return days;
-  }, [strainer.trends?.nextCleanDue, strainerPredictions.daysToCritical]);
+  const debrisHistogramData = useMemo(
+    () => debrisMix.map((slice) => ({ name: slice.type, percent: slice.percent })),
+    [debrisMix],
+  );
   const debrisColors = {
     "Sand/Silt": "#facc15",
     "Corrosion Products": "#f97316",
@@ -2317,7 +2254,7 @@ const StrainerOverviewPanels = ({ strainer, strainerOptions = [], selectedId, on
               </AreaChart>
             </ResponsiveContainer>
           </div>
-          {debrisStackData.length > 0 && (
+          {debrisHistogramData.length > 0 && (
             <div className="mt-6">
               <div className="flex items-center justify-between text-sm text-white">
                 <span>Debris Composition</span>
@@ -2325,29 +2262,39 @@ const StrainerOverviewPanels = ({ strainer, strainerOptions = [], selectedId, on
                   Last {strainer.cleaningHistory?.length ?? 0} cleans
                 </span>
               </div>
-              <div className="mt-3 h-40">
+              <div className="mt-3 h-72">
                 <ResponsiveContainer>
-                  <BarChart data={debrisStackData}>
+                  <BarChart data={debrisHistogramData} margin={{ top: 16, left: 16, right: 16, bottom: 12 }}>
                     <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
-                    <XAxis dataKey="name" hide />
-                    <YAxis stroke="#9ca3af" fontSize={12} unit="%" />
+                    <XAxis
+                      dataKey="name"
+                      stroke="#9ca3af"
+                      fontSize={12}
+                      tickLine={false}
+                      axisLine={{ stroke: "rgba(255,255,255,0.12)" }}
+                    />
+                    <YAxis
+                      stroke="#9ca3af"
+                      fontSize={12}
+                      unit="%"
+                      tickLine={false}
+                      axisLine={{ stroke: "rgba(255,255,255,0.12)" }}
+                      domain={[0, 100]}
+                    />
                     <Tooltip
                       contentStyle={{ background: "#111827", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px" }}
                       labelStyle={{ color: "#e5e7eb" }}
-                      formatter={(value, name) => {
-                        const formatted = typeof value === "number" ? `${value.toFixed(1)}%` : value;
-                        return [formatted, name];
+                      formatter={(value) => {
+                        if (typeof value === "number") return [`${value.toFixed(1)}%`, "Contribution"];
+                        return [value, "Contribution"];
                       }}
+                      labelFormatter={(label) => label}
                     />
-                    {debrisMix.map((slice) => (
-                      <Bar
-                        key={`debris-${slice.type}`}
-                        dataKey={slice.type}
-                        stackId="mix"
-                        fill={debrisColors[slice.type] ?? "#f472b6"}
-                        radius={[6, 6, 6, 6]}
-                      />
-                    ))}
+                    <Bar dataKey="percent" radius={[12, 12, 0, 0]} barSize={48} barGap={12}>
+                      {debrisHistogramData.map((slice) => (
+                        <Cell key={`debris-${slice.name}`} fill={debrisColors[slice.name] ?? "#f472b6"} />
+                      ))}
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -2366,85 +2313,6 @@ const StrainerOverviewPanels = ({ strainer, strainerOptions = [], selectedId, on
               </div>
             </div>
           )}
-        </div>
-      ),
-    },
-    {
-      key: "tuning",
-      title: "Live KPI Tuning",
-      icon: Activity,
-      content: (
-        <div className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-3">
-            <PredictionCard
-              title="Fouling Rate"
-              value={`${strainerPredictions.foulingRate ?? strainer.trends.dpRate?.toFixed(2) ?? 0} psi/day`}
-              description="Current modeled rate"
-            />
-            <PredictionCard
-              title="Days To Critical"
-              value={formatTimeRemaining(strainerPredictions.daysToCritical ?? 0)}
-              description="Projected breach window"
-            />
-            <PredictionCard
-              title="Cleaning Window"
-              value={formatTimeRemaining(nextCleanCountdown)}
-              description={`Next clean ${formatDate(strainer.trends?.nextCleanDue)}`}
-            />
-          </div>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <div className={`${GLASS_TILE} p-4`}>
-              <div className="text-sm font-semibold text-white">Fleet Comparison</div>
-              <div className="mt-3 space-y-2 text-xs text-gray-300">
-                <div className="flex items-center justify-between">
-                  <span>Δ DP vs fleet</span>
-                  <span className={dpDelta >= 0 ? "text-rose-300" : "text-emerald-300"}>
-                    {dpDelta >= 0 ? "+" : ""}
-                    {dpDelta.toFixed(1)} psi
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Δ Fouling rate</span>
-                  <span className={foulingDelta >= 0 ? "text-amber-300" : "text-emerald-300"}>
-                    {foulingDelta >= 0 ? "+" : ""}
-                    {foulingDelta.toFixed(2)} psi/day
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Δ Efficiency</span>
-                  <span className={efficiencyDelta >= 0 ? "text-sky-300" : "text-rose-300"}>
-                    {efficiencyDelta >= 0 ? "+" : ""}
-                    {efficiencyDelta.toFixed(1)}%
-                  </span>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-                  <div className="text-xs uppercase tracking-wide text-gray-500">Maintenance overlay</div>
-                  <div className="text-sm text-white">
-                    {formatTimeRemaining(strainerPredictions.daysToCritical ?? 0)} to breach vs{" "}
-                    {formatTimeRemaining(nextCleanCountdown)}{" "}
-                    scheduled clean
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className={`${GLASS_TILE} p-4`}>
-              <div className="text-sm font-semibold text-white">Anomaly Callouts</div>
-              <div className="mt-3 space-y-3 text-xs text-gray-300">
-                {anomalyCallouts.map((callout, idx) => (
-                  <div
-                    key={`callout-${idx}`}
-                    className="rounded-2xl border border-white/10 bg-white/5 p-3"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-white">{callout.label}</span>
-                      <span className={`text-sm font-semibold ${callout.tone}`}>{callout.value}</span>
-                    </div>
-                    <div className="mt-1 text-[11px] uppercase tracking-wide text-gray-500">{callout.description}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
         </div>
       ),
     },
